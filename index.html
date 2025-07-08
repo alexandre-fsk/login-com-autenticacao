@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <link rel="stylesheet" href="assets/css/arquivo.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Registro e Login</title>
+</head>
+
+<body>
+    <div class="container">
+        <div class="form-container">
+            <!-- Login Form -->
+            <div class="form-section" id="loginForm">
+                <h2>Bem vindo de volta!</h2>
+                <form id="loginFormElement">
+                    <div class="form-group">
+                        <label for="loginEmail">Email:</label>
+                        <input type="email" id="loginEmail" name="email" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="loginPassword">Senha:</label>
+                        <input type="password" id="loginPassword" name="password" required>
+                        <div class="password-toggle" onclick="togglePassword('loginPassword')">
+                            <span class="eye-icon">👁️</span>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Entrar</button>
+                </form>
+                <p class="form-switch">
+                    Não tem uma conta? 
+                    <a href="#" onclick="showRegistrationForm()">Registre-se</a>
+                </p>
+            </div>
+
+            <!-- Registration Form -->
+            <div class="form-section hidden" id="registrationForm">
+                <h2>Registro</h2>
+                <form id="registrationFormElement">
+                    <div class="form-group">
+                        <label for="regName">Nome Completo:</label>
+                        <input type="text" id="regName" name="name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="regEmail">Email:</label>
+                        <input type="email" id="regEmail" name="email" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="regPassword">Senha:</label>
+                        <input type="password" id="regPassword" name="password" required>
+                        <div class="password-toggle" onclick="togglePassword('regPassword')">
+                            <span class="eye-icon">👁️</span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="regConfirmPassword">Confirmar Senha:</label>
+                        <input type="password" id="regConfirmPassword" name="confirmPassword" required>
+                        <div class="password-toggle" onclick="togglePassword('regConfirmPassword')">
+                            <span class="eye-icon">👁️</span>
+                        </div>
+                    </div>
+                    <div class="password-strength">
+                        <div class="strength-bar">
+                            <div class="strength-fill" id="strengthFill"></div>
+                        </div>
+                        <span class="strength-text" id="strengthText">Força da senha</span>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Registrar</button>
+                </form>
+                <p class="form-switch">
+                    Já tem uma conta? 
+                    <a href="#" onclick="showLoginForm()">Faça login</a>
+                </p>
+            </div>
+
+            <!-- Success Message -->
+            <div class="success-message hidden" id="successMessage">
+                <div class="success-icon">✅</div>
+                <h3>Sucesso!</h3>
+                <p id="successText"></p>
+                <button class="btn btn-secondary" onclick="hideSuccessMessage()">Continuar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Container -->
+    <div id="notificationContainer"></div>
+
+    <script src="assets/js/arquivo.js"></script>
+</body>
+
+</html>
