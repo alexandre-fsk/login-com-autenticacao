@@ -1,94 +1,166 @@
 <!DOCTYPE html>
 <html lang="pt-br">
-
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <link rel="stylesheet" href="assets/css/arquivo.css">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Registro e Login</title>
+    <title>Sistema de Autenticação JWT</title>
+    <link rel="stylesheet" href="https://cdn.metroui.org.ua/v4/css/metro-all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="assets/css/arquivo.css">
 </head>
-
 <body>
-    <div class="container">
-        <div class="form-container">
-            <!-- Login Form -->
-            <div class="form-section" id="loginForm">
-                <h2>Bem vindo de volta!</h2>
-                <form id="loginFormElement">
-                    <div class="form-group">
-                        <label for="loginEmail">Email:</label>
-                        <input type="email" id="loginEmail" name="email" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="loginPassword">Senha:</label>
-                        <input type="password" id="loginPassword" name="password" required>
-                        <div class="password-toggle" onclick="togglePassword('loginPassword')">
-                            <span class="eye-icon">👁️</span>
-                        </div>
-                    </div>
-                    <button type="submit" class="btn btn-primary">Entrar</button>
-                </form>
-                <p class="form-switch">
-                    Não tem uma conta? 
-                    <a href="#" onclick="showRegistrationForm()">Registre-se</a>
-                </p>
-            </div>
-
-            <!-- Registration Form -->
-            <div class="form-section hidden" id="registrationForm">
-                <h2>Registro</h2>
-                <form id="registrationFormElement">
-                    <div class="form-group">
-                        <label for="regName">Nome Completo:</label>
-                        <input type="text" id="regName" name="name" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="regEmail">Email:</label>
-                        <input type="email" id="regEmail" name="email" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="regPassword">Senha:</label>
-                        <input type="password" id="regPassword" name="password" required>
-                        <div class="password-toggle" onclick="togglePassword('regPassword')">
-                            <span class="eye-icon">👁️</span>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="regConfirmPassword">Confirmar Senha:</label>
-                        <input type="password" id="regConfirmPassword" name="confirmPassword" required>
-                        <div class="password-toggle" onclick="togglePassword('regConfirmPassword')">
-                            <span class="eye-icon">👁️</span>
-                        </div>
-                    </div>
-                    <div class="password-strength">
-                        <div class="strength-bar">
-                            <div class="strength-fill" id="strengthFill"></div>
-                        </div>
-                        <span class="strength-text" id="strengthText">Força da senha</span>
-                    </div>
-                    <button type="submit" class="btn btn-primary">Registrar</button>
-                </form>
-                <p class="form-switch">
-                    Já tem uma conta? 
-                    <a href="#" onclick="showLoginForm()">Faça login</a>
-                </p>
-            </div>
-
-            <!-- Success Message -->
-            <div class="success-message hidden" id="successMessage">
-                <div class="success-icon">✅</div>
-                <h3>Sucesso!</h3>
-                <p id="successText"></p>
-                <button class="btn btn-secondary" onclick="hideSuccessMessage()">Continuar</button>
+    <div id="app">
+        <div v-if="loading" class="loading-screen">
+            <div class="loading-spinner">
+                <i class="fas fa-spinner fa-spin"></i>
             </div>
         </div>
+
+        <div v-if="!isAuthenticated && !loading" class="container">
+            <div class="form-container">
+                <div v-if="!showRegister" class="form-section">
+                    <h2><i class="fas fa-sign-in-alt"></i> Bem vindo de volta!</h2>
+                    <form @submit.prevent="handleLogin">
+                        <div class="form-group">
+                            <label><i class="fas fa-envelope"></i> Email:</label>
+                            <input type="email" v-model="loginForm.email" required :class="{ 'error': loginErrors.email }" autofocus>
+                            <span v-if="loginErrors.email" class="error-message">{{ loginErrors.email }}</span>
+                        </div>
+                        <div class="form-group">
+                            <label><i class="fas fa-lock"></i> Senha:</label>
+                            <div class="password-input-container">
+                                <input :type="showLoginPassword ? 'text' : 'password'" v-model="loginForm.password" required :class="{ 'error': loginErrors.password }">
+                                <button type="button" class="password-toggle" @click="showLoginPassword = !showLoginPassword">
+                                    <i :class="showLoginPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+                                </button>
+                            </div>
+                            <span v-if="loginErrors.password" class="error-message">{{ loginErrors.password }}</span>
+                        </div>
+                        <button type="submit" class="btn btn-primary" :disabled="loginLoading">
+                            <i v-if="loginLoading" class="fas fa-spinner fa-spin"></i>
+                            <i v-else class="fas fa-sign-in-alt"></i>
+                            {{ loginLoading ? "Entrando..." : "Entrar" }}
+                        </button>
+                    </form>
+                    <p class="form-switch">
+                        Não tem uma conta? 
+                        <a href="#" @click="showRegister = true">
+                            <i class="fas fa-user-plus"></i> Registre-se
+                        </a>
+                    </p>
+                </div>
+
+                <div v-if="showRegister" class="form-section">
+                    <h2><i class="fas fa-user-plus"></i> Registro</h2>
+                    <form @submit.prevent="handleRegister">
+                        <div class="form-group">
+                            <label><i class="fas fa-user"></i> Nome Completo:</label>
+                            <input type="text" v-model="registerForm.name" required :class="{ 'error': registerErrors.name }" autofocus>
+                            <span v-if="registerErrors.name" class="error-message">{{ registerErrors.name }}</span>
+                        </div>
+                        <div class="form-group">
+                            <label><i class="fas fa-envelope"></i> Email:</label>
+                            <input type="email" v-model="registerForm.email" required :class="{ 'error': registerErrors.email }">
+                            <span v-if="registerErrors.email" class="error-message">{{ registerErrors.email }}</span>
+                        </div>
+                        <div class="form-group">
+                            <label><i class="fas fa-lock"></i> Senha:</label>
+                            <div class="password-input-container">
+                                <input :type="showRegisterPassword ? 'text' : 'password'" v-model="registerForm.password" required @input="checkPasswordStrength" :class="{ 'error': registerErrors.password }">
+                                <button type="button" class="password-toggle" @click="showRegisterPassword = !showRegisterPassword">
+                                    <i :class="showRegisterPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+                                </button>
+                            </div>
+                            <span v-if="registerErrors.password" class="error-message">{{ registerErrors.password }}</span>
+                        </div>
+                        <div class="form-group">
+                            <label><i class="fas fa-lock"></i> Confirmar Senha:</label>
+                            <div class="password-input-container">
+                                <input :type="showConfirmPassword ? 'text' : 'password'" v-model="registerForm.confirmPassword" required :class="{ 'error': registerErrors.confirmPassword }">
+                                <button type="button" class="password-toggle" @click="showConfirmPassword = !showConfirmPassword">
+                                    <i :class="showConfirmPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+                                </button>
+                            </div>
+                            <span v-if="registerErrors.confirmPassword" class="error-message">{{ registerErrors.confirmPassword }}</span>
+                        </div>
+                        
+                        <div v-if="registerForm.password" class="password-strength">
+                            <div class="strength-bar">
+                                <div class="strength-fill" :class="passwordStrength.class"></div>
+                            </div>
+                            <span class="strength-text">
+                                <i :class="passwordStrength.icon"></i>
+                                {{ passwordStrength.text }}
+                            </span>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary" :disabled="registerLoading">
+                            <i v-if="registerLoading" class="fas fa-spinner fa-spin"></i>
+                            <i v-else class="fas fa-user-plus"></i>
+                            {{ registerLoading ? "Registrando..." : "Registrar" }}
+                        </button>
+                    </form>
+                    <p class="form-switch">
+                        Já tem uma conta? 
+                        <a href="#" @click="showRegister = false">
+                            <i class="fas fa-sign-in-alt"></i> Faça login
+                        </a>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="isAuthenticated && !loading" class="dashboard">
+            <nav class="navbar">
+                <div class="navbar-brand">
+                    <i class="fas fa-shield-alt"></i>
+                    <span>Sistema Seguro</span>
+                </div>
+                <div class="navbar-menu">
+                    <button @click="logout" class="btn btn-outline">
+                        <i class="fas fa-sign-out-alt"></i> Sair
+                    </button>
+                </div>
+            </nav>
+            
+            <div class="dashboard-content">
+                <div class="welcome-card">
+                    <div class="welcome-icon">
+                        <i class="fas fa-user-circle"></i>
+                    </div>
+                    <h2>Bem-vindo, {{ user.name }}!</h2>
+                    <p>Você está logado com sucesso usando JWT.</p>
+                    <div class="user-info">
+                        <p><i class="fas fa-envelope"></i> {{ user.email }}</p>
+                        <p><i class="fas fa-clock"></i> Login em: {{ formatDate(user.loginTime) }}</p>
+                    </div>
+                </div>
+                
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <i class="fas fa-shield-alt"></i>
+                        <h3>Autenticação Segura</h3>
+                        <p>Seu token JWT está ativo e protegendo sua sessão.</p>
+                    </div>
+                    <div class="feature-card">
+                        <i class="fas fa-mobile-alt"></i>
+                        <h3>Responsivo</h3>
+                        <p>Interface otimizada para dispositivos móveis.</p>
+                    </div>
+                    <div class="feature-card">
+                        <i class="fas fa-bolt"></i>
+                        <h3>Rápido</h3>
+                        <p>Carregamento rápido e experiência fluida.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="notificationContainer"></div>
     </div>
 
-    <!-- Notification Container -->
-    <div id="notificationContainer"></div>
-
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.metroui.org.ua/v4/js/metro.min.js"></script>
     <script src="assets/js/arquivo.js"></script>
 </body>
-
 </html>

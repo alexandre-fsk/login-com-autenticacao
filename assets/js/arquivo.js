@@ -1,137 +1,112 @@
-// User Management System
-class UserManager {
-    constructor() {
-        this.users = JSON.parse(localStorage.getItem('users')) || [];
-        this.currentUser = JSON.parse(localStorage.getItem('currentUser')) || null;
-    }
+// JWT Authentication System with Vue.js
+const { createApp } = Vue;
 
-    registerUser(name, email, password) {
-        if (this.users.find(user => user.email === email)) {
-            throw new Error('Usuário já existe com este email');
+// JWT Utility Functions
+const JWTUtils = {
+    // Decode JWT token without verification (for client-side display)
+    decodeToken(token) {
+        try {
+            const base64Url = token.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => {
+                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join(''));
+            return JSON.parse(jsonPayload);
+        } catch (error) {
+            console.error('Error decoding JWT token:', error);
+            return null;
         }
+    },
 
-        const newUser = {
-            id: Date.now().toString(),
-            name: name,
-            email: email,
-            password: this.hashPassword(password),
-            createdAt: new Date().toISOString()
+    // Check if token is expired
+    isTokenExpired(token) {
+        const decoded = this.decodeToken(token);
+        if (!decoded || !decoded.exp) return true;
+        return Date.now() >= decoded.exp * 1000;
+    },
+
+    // Store token in localStorage
+    storeToken(token) {
+        localStorage.setItem('jwt_token', token);
+    },
+
+    // Get token from localStorage
+    getToken() {
+        return localStorage.getItem('jwt_token');
+    },
+
+    // Remove token from localStorage
+    removeToken() {
+        localStorage.removeItem('jwt_token');
+    }
+};
+
+// API Service
+const APIService = {
+    baseURL: 'http://localhost:3000/api',
+
+    async request(endpoint, options = {}) {
+        const token = JWTUtils.getToken();
+        const headers = {
+            'Content-Type': 'application/json',
+            ...options.headers
         };
 
-        this.users.push(newUser);
-        this.saveUsers();
-        return newUser;
-    }
-
-    loginUser(email, password) {
-        const user = this.users.find(user => user.email === email);
-        
-        if (!user) {
-            throw new Error('Usuário não encontrado');
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
         }
 
-        if (!this.verifyPassword(password, user.password)) {
-            throw new Error('Senha incorreta');
+        try {
+            const response = await fetch(`${this.baseURL}${endpoint}`, {
+                ...options,
+                headers
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || `HTTP error! status: ${response.status}`);
+            }
+
+            return data;
+        } catch (error) {
+            console.error('API request failed:', error);
+            throw error;
         }
+    },
 
-        this.currentUser = {
-            id: user.id,
-            name: user.name,
-            email: user.email
-        };
-        
-        localStorage.setItem('currentUser', JSON.stringify(this.currentUser));
-        return this.currentUser;
+    // Login API call
+    async login(credentials) {
+        return this.request('/login', {
+            method: 'POST',
+            body: JSON.stringify(credentials)
+        });
+    },
+
+    // Register API call
+    async register(userData) {
+        return this.request('/register', {
+            method: 'POST',
+            body: JSON.stringify(userData)
+        });
+    },
+
+    // Get user profile
+    async getProfile() {
+        return this.request('/profile');
+    },
+
+    // Logout API call
+    async logout() {
+        return this.request('/logout', {
+            method: 'POST'
+        });
     }
-
-    logoutUser() {
-        this.currentUser = null;
-        localStorage.removeItem('currentUser');
-    }
-
-    hashPassword(password) {
-        return btoa(password + 'salt');
-    }
-
-    verifyPassword(password, hashedPassword) {
-        return this.hashPassword(password) === hashedPassword;
-    }
-
-    saveUsers() {
-        localStorage.setItem('users', JSON.stringify(this.users));
-    }
-
-    getCurrentUser() {
-        return this.currentUser;
-    }
-
-    isLoggedIn() {
-        return this.currentUser !== null;
-    }
-}
-
-// Password Strength Checker
-class PasswordStrengthChecker {
-    static checkStrength(password) {
-        let score = 0;
-        let feedback = [];
-
-        if (password.length >= 8) {
-            score += 1;
-        } else {
-            feedback.push('Senha deve ter pelo menos 8 caracteres');
-        }
-
-        if (/[a-z]/.test(password)) {
-            score += 1;
-        } else {
-            feedback.push('Incluir letras minúsculas');
-        }
-
-        if (/[A-Z]/.test(password)) {
-            score += 1;
-        } else {
-            feedback.push('Incluir letras maiúsculas');
-        }
-
-        if (/\d/.test(password)) {
-            score += 1;
-        } else {
-            feedback.push('Incluir números');
-        }
-
-        if (/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
-            score += 1;
-        } else {
-            feedback.push('Incluir caracteres especiais');
-        }
-
-        let strength = 'weak';
-        let strengthText = 'Fraca';
-
-        if (score >= 4) {
-            strength = 'strong';
-            strengthText = 'Forte';
-        } else if (score >= 3) {
-            strength = 'good';
-            strengthText = 'Boa';
-        } else if (score >= 2) {
-            strength = 'fair';
-            strengthText = 'Média';
-        }
-
-        return {
-            score: score,
-            strength: strength,
-            strengthText: strengthText,
-            feedback: feedback
-        };
-    }
-}
+};
 
 // Notification System
-class NotificationSystem {
-    static show(message, type = 'success', duration = 5000) {
+const NotificationSystem = {
+    show(message, type = 'success', duration = 5000) {
         const container = document.getElementById('notificationContainer');
         const notification = document.createElement('div');
         notification.className = `notification ${type}`;
@@ -139,12 +114,15 @@ class NotificationSystem {
         notification.innerHTML = `
             <div class="notification-content">
                 <div class="notification-text">${message}</div>
-                <button class="notification-close" onclick="this.parentElement.parentElement.remove()">×</button>
+                <button class="notification-close" onclick="this.parentElement.parentElement.remove()">
+                    <i class="fas fa-times"></i>
+                </button>
             </div>
         `;
-
+        
         container.appendChild(notification);
-
+        
+        // Auto remove after duration
         setTimeout(() => {
             if (notification.parentElement) {
                 notification.style.animation = 'slideOut 0.3s ease forwards';
@@ -156,201 +134,274 @@ class NotificationSystem {
             }
         }, duration);
     }
-}
+};
 
-// Form Validation
-class FormValidator {
-    static validateEmail(email) {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return emailRegex.test(email);
+// Password Strength Checker
+const PasswordStrength = {
+    check(password) {
+        let score = 0;
+        let feedback = [];
+
+        // Length check
+        if (password.length >= 8) score += 1;
+        else feedback.push('At least 8 characters');
+
+        // Lowercase check
+        if (/[a-z]/.test(password)) score += 1;
+        else feedback.push('Include lowercase letters');
+
+        // Uppercase check
+        if (/[A-Z]/.test(password)) score += 1;
+        else feedback.push('Include uppercase letters');
+
+        // Numbers check
+        if (/\d/.test(password)) score += 1;
+        else feedback.push('Include numbers');
+
+        // Special characters check
+        if (/[!@#$%^&*(),.?":{}|<>]/.test(password)) score += 1;
+        else feedback.push('Include special characters');
+
+        let strength = 'weak';
+        let icon = 'fas fa-times-circle';
+        let color = 'weak';
+
+        if (score >= 5) {
+            strength = 'strong';
+            icon = 'fas fa-check-circle';
+            color = 'strong';
+        } else if (score >= 4) {
+            strength = 'good';
+            icon = 'fas fa-check';
+            color = 'good';
+        } else if (score >= 3) {
+            strength = 'fair';
+            icon = 'fas fa-exclamation-triangle';
+            color = 'fair';
+        }
+
+        return {
+            score,
+            strength,
+            feedback,
+            class: color,
+            icon,
+            text: strength.charAt(0).toUpperCase() + strength.slice(1)
+        };
     }
+};
 
-    static validatePassword(password) {
-        return password.length >= 8;
+// Vue.js Application
+const app = createApp({
+    data() {
+        return {
+            loading: true,
+            isAuthenticated: false,
+            showRegister: false,
+            user: null,
+            
+            // Login form
+            loginForm: {
+                email: '',
+                password: ''
+            },
+            loginErrors: {},
+            loginLoading: false,
+            showLoginPassword: false,
+            
+            // Register form
+            registerForm: {
+                name: '',
+                email: '',
+                password: '',
+                confirmPassword: ''
+            },
+            registerErrors: {},
+            registerLoading: false,
+            showRegisterPassword: false,
+            showConfirmPassword: false,
+            
+            // Password strength
+            passwordStrength: {
+                class: '',
+                icon: '',
+                text: ''
+            }
+        };
+    },
+
+    async mounted() {
+        await this.checkAuthentication();
+        this.loading = false;
+    },
+
+    methods: {
+        // Check if user is already authenticated
+        async checkAuthentication() {
+            const token = JWTUtils.getToken();
+            if (token && !JWTUtils.isTokenExpired(token)) {
+                const decoded = JWTUtils.decodeToken(token);
+                if (decoded) {
+                    this.user = {
+                        name: decoded.name || 'User',
+                        email: decoded.email || 'user@example.com',
+                        loginTime: new Date().toISOString()
+                    };
+                    this.isAuthenticated = true;
+                }
+            } else if (token) {
+                // Token is expired, remove it
+                JWTUtils.removeToken();
+            }
+        },
+
+        // Handle login form submission
+        async handleLogin() {
+            this.clearLoginErrors();
+            if (!this.loginForm.email) {
+                this.loginErrors.email = 'Email is required';
+                return;
+            }
+            if (!this.loginForm.password) {
+                this.loginErrors.password = 'Password is required';
+                return;
+            }
+            this.loginLoading = true;
+            try {
+                const response = await APIService.login(this.loginForm);
+                if (response.success) {
+                    JWTUtils.storeToken(response.token);
+                    // Set user from JWT payload
+                    const decoded = JWTUtils.decodeToken(response.token);
+                    this.user = {
+                        name: decoded.name || response.user.name || 'User',
+                        email: decoded.email || response.user.email || 'user@example.com',
+                        loginTime: response.user.loginTime || new Date().toISOString()
+                    };
+                    this.isAuthenticated = true;
+                    this.clearForms();
+                    NotificationSystem.show('Login successful! Welcome back.', 'success');
+                }
+            } catch (error) {
+                NotificationSystem.show(error.message || 'Login failed. Please try again.', 'error');
+            } finally {
+                this.loginLoading = false;
+            }
+        },
+
+        // Handle register form submission
+        async handleRegister() {
+            this.clearRegisterErrors();
+            if (!this.registerForm.name.trim()) {
+                this.registerErrors.name = 'Name is required';
+                return;
+            }
+            if (!this.registerForm.email) {
+                this.registerErrors.email = 'Email is required';
+                return;
+            }
+            if (!this.isValidEmail(this.registerForm.email)) {
+                this.registerErrors.email = 'Please enter a valid email address';
+                return;
+            }
+            if (!this.registerForm.password) {
+                this.registerErrors.password = 'Password is required';
+                return;
+            }
+            if (this.registerForm.password.length < 8) {
+                this.registerErrors.password = 'Password must be at least 8 characters long';
+                return;
+            }
+            if (this.registerForm.password !== this.registerForm.confirmPassword) {
+                this.registerErrors.confirmPassword = 'Passwords do not match';
+                return;
+            }
+            this.registerLoading = true;
+            try {
+                const response = await APIService.register(this.registerForm);
+                if (response.success) {
+                    JWTUtils.storeToken(response.token);
+                    // Set user from JWT payload
+                    const decoded = JWTUtils.decodeToken(response.token);
+                    this.user = {
+                        name: decoded.name || response.user.name || 'User',
+                        email: decoded.email || response.user.email || 'user@example.com',
+                        loginTime: new Date().toISOString()
+                    };
+                    this.isAuthenticated = true;
+                    this.clearForms();
+                    NotificationSystem.show('Registration successful! Welcome to our platform.', 'success');
+                }
+            } catch (error) {
+                NotificationSystem.show(error.message || 'Registration failed. Please try again.', 'error');
+            } finally {
+                this.registerLoading = false;
+            }
+        },
+
+        // Logout user
+        logout() {
+            JWTUtils.removeToken();
+            this.isAuthenticated = false;
+            this.user = null;
+            this.showRegister = false;
+            this.clearForms();
+            NotificationSystem.show('You have been logged out successfully.', 'success');
+        },
+
+        // Check password strength
+        checkPasswordStrength() {
+            if (this.registerForm.password) {
+                this.passwordStrength = PasswordStrength.check(this.registerForm.password);
+            } else {
+                this.passwordStrength = { class: '', icon: '', text: '' };
+            }
+        },
+
+        // Clear login form errors
+        clearLoginErrors() {
+            this.loginErrors = {};
+        },
+
+        // Clear register form errors
+        clearRegisterErrors() {
+            this.registerErrors = {};
+        },
+
+        // Clear all forms
+        clearForms() {
+            this.loginForm = { email: '', password: '' };
+            this.registerForm = { name: '', email: '', password: '', confirmPassword: '' };
+            this.loginErrors = {};
+            this.registerErrors = {};
+            this.passwordStrength = { class: '', icon: '', text: '' };
+            this.showLoginPassword = false;
+            this.showRegisterPassword = false;
+            this.showConfirmPassword = false;
+        },
+
+        // Validate email format
+        isValidEmail(email) {
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            return emailRegex.test(email);
+        },
+
+        // Format date for display
+        formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleString('pt-BR', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
     }
-
-    static validateName(name) {
-        return name.trim().length >= 2;
-    }
-}
-
-// Initialize the application
-const userManager = new UserManager();
-
-// DOM Elements
-const loginForm = document.getElementById('loginFormElement');
-const registrationForm = document.getElementById('registrationFormElement');
-const loginSection = document.getElementById('loginForm');
-const registrationSection = document.getElementById('registrationForm');
-const successMessage = document.getElementById('successMessage');
-const successText = document.getElementById('successText');
-
-// Event Listeners
-document.addEventListener('DOMContentLoaded', function() {
-    if (userManager.isLoggedIn()) {
-        showSuccessMessage(`Bem-vindo de volta, ${userManager.getCurrentUser().name}!`);
-    }
-
-    loginForm.addEventListener('submit', handleLogin);
-    registrationForm.addEventListener('submit', handleRegistration);
-
-    const regPassword = document.getElementById('regPassword');
-    regPassword.addEventListener('input', updatePasswordStrength);
-
-    const regConfirmPassword = document.getElementById('regConfirmPassword');
-    regConfirmPassword.addEventListener('input', validatePasswordConfirmation);
 });
 
-// Handle login form submission
-function handleLogin(e) {
-    e.preventDefault();
-    
-    const email = document.getElementById('loginEmail').value;
-    const password = document.getElementById('loginPassword').value;
+// Mount the Vue application
+app.mount('#app');
 
-    if (!FormValidator.validateEmail(email)) {
-        NotificationSystem.show('Por favor, insira um email válido', 'error');
-        return;
-    }
-
-    if (!FormValidator.validatePassword(password)) {
-        NotificationSystem.show('Por favor, insira uma senha válida', 'error');
-        return;
-    }
-
-    try {
-        const user = userManager.loginUser(email, password);
-        NotificationSystem.show('Login realizado com sucesso!', 'success');
-        showSuccessMessage(`Bem-vindo, ${user.name}!`);
-        loginForm.reset();
-    } catch (error) {
-        NotificationSystem.show(error.message, 'error');
-    }
-}
-
-// Handle registration form submission
-function handleRegistration(e) {
-    e.preventDefault();
-    
-    const name = document.getElementById('regName').value;
-    const email = document.getElementById('regEmail').value;
-    const password = document.getElementById('regPassword').value;
-    const confirmPassword = document.getElementById('regConfirmPassword').value;
-
-    if (!FormValidator.validateName(name)) {
-        NotificationSystem.show('Nome deve ter pelo menos 2 caracteres', 'error');
-        return;
-    }
-
-    if (!FormValidator.validateEmail(email)) {
-        NotificationSystem.show('Por favor, insira um email válido', 'error');
-        return;
-    }
-
-    if (!FormValidator.validatePassword(password)) {
-        NotificationSystem.show('Senha deve ter pelo menos 8 caracteres', 'error');
-        return;
-    }
-
-    if (password !== confirmPassword) {
-        NotificationSystem.show('Senhas não coincidem', 'error');
-        return;
-    }
-
-    const strength = PasswordStrengthChecker.checkStrength(password);
-    if (strength.score < 3) {
-        NotificationSystem.show('Senha muito fraca. Tente uma senha mais forte.', 'warning');
-        return;
-    }
-
-    try {
-        const user = userManager.registerUser(name, email, password);
-        NotificationSystem.show('Conta criada com sucesso!', 'success');
-        showSuccessMessage(`Conta criada para ${user.name}! Você pode fazer login agora.`);
-        registrationForm.reset();
-        resetPasswordStrength();
-    } catch (error) {
-        NotificationSystem.show(error.message, 'error');
-    }
-}
-
-// Update password strength indicator
-function updatePasswordStrength() {
-    const password = document.getElementById('regPassword').value;
-    const strengthFill = document.getElementById('strengthFill');
-    const strengthText = document.getElementById('strengthText');
-    
-    if (password.length === 0) {
-        strengthFill.className = 'strength-fill';
-        strengthText.textContent = 'Força da senha';
-        return;
-    }
-
-    const strength = PasswordStrengthChecker.checkStrength(password);
-    strengthFill.className = `strength-fill ${strength.strength}`;
-    strengthText.textContent = strength.strengthText;
-}
-
-// Reset password strength indicator
-function resetPasswordStrength() {
-    const strengthFill = document.getElementById('strengthFill');
-    const strengthText = document.getElementById('strengthText');
-    
-    strengthFill.className = 'strength-fill';
-    strengthText.textContent = 'Força da senha';
-}
-
-// Validate password confirmation
-function validatePasswordConfirmation() {
-    const password = document.getElementById('regPassword').value;
-    const confirmPassword = document.getElementById('regConfirmPassword').value;
-    
-    if (confirmPassword && password !== confirmPassword) {
-        document.getElementById('regConfirmPassword').style.borderColor = '#dc3545';
-    } else {
-        document.getElementById('regConfirmPassword').style.borderColor = '#e1e5e9';
-    }
-}
-
-// Toggle password visibility
-function togglePassword(inputId) {
-    const input = document.getElementById(inputId);
-    if (input.type === 'password') {
-        input.type = 'text';
-    } else {
-        input.type = 'password';
-    }
-}
-
-// Show registration form
-function showRegistrationForm() {
-    loginSection.classList.add('hidden');
-    registrationSection.classList.remove('hidden');
-}
-
-// Show login form
-function showLoginForm() {
-    registrationSection.classList.add('hidden');
-    loginSection.classList.remove('hidden');
-}
-
-// Show success message
-function showSuccessMessage(message) {
-    successText.textContent = message;
-    loginSection.classList.add('hidden');
-    registrationSection.classList.add('hidden');
-    successMessage.classList.remove('hidden');
-}
-
-// Hide success message
-function hideSuccessMessage() {
-    successMessage.classList.add('hidden');
-    loginSection.classList.remove('hidden');
-}
-
-// Logout function
-function logout() {
-    userManager.logoutUser();
-    NotificationSystem.show('Logout realizado com sucesso', 'success');
-    hideSuccessMessage();
-} 
+// Global notification function for external use
+window.showNotification = NotificationSystem.show;
